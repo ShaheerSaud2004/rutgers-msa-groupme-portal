@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Add Group Chat - GroupMe Portal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-plus"></i> Add Group Chat
+        </h1>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-users"></i> Group Chat Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Group Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               placeholder="e.g., My Event Planning Group">
+                        <div class="form-text">A friendly name to identify this group in the portal.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="group_id" class="form-label">Group ID</label>
+                        <input type="text" class="form-control" id="group_id" name="group_id" required 
+                               placeholder="e.g., 12345678">
+                        <div class="form-text">
+                            The GroupMe Group ID. You can find this in your group's URL or by using the GroupMe API.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="bot_id" class="form-label">Bot ID</label>
+                        <input type="text" class="form-control" id="bot_id" name="bot_id" required 
+                               placeholder="e.g., abc123def456">
+                        <div class="form-text">
+                            The Bot ID from your GroupMe bot. Create a bot at 
+                            <a href="https://dev.groupme.com/bots" target="_blank">GroupMe Developer Console</a>.
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Add Group
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Help Section -->
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-question-circle"></i> How to Get Group Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6>Step 1: Create a GroupMe Bot</h6>
+                <ol>
+                    <li>Go to <a href="https://dev.groupme.com/bots" target="_blank">GroupMe Developer Console</a></li>
+                    <li>Click "Create Bot"</li>
+                    <li>Select your group chat</li>
+                    <li>Give your bot a name (e.g., "Event Bot")</li>
+                    <li>Copy the Bot ID that's generated</li>
+                </ol>
+
+                <h6>Step 2: Find Your Group ID</h6>
+                <ol>
+                    <li>In your GroupMe app, go to the group chat</li>
+                    <li>Tap the group name at the top</li>
+                    <li>Scroll down to find the Group ID, or</li>
+                    <li>Use the GroupMe API to list your groups</li>
+                </ol>
+
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Note:</strong> Make sure your bot is added to the group chat before using it to send messages.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

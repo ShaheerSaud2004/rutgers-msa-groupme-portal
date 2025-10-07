@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - GroupMe Portal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Quick Actions -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('create_post') }}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Create New Post
+                    </a>
+                    <a href="{{ url_for('add_group') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-plus"></i> Add Group Chat
+                    </a>
+                    <a href="{{ url_for('scheduled_posts') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-clock"></i> View Scheduled Posts
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Chats -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-users"></i> Group Chats ({{ group_chats|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if group_chats %}
+                    {% for group in group_chats %}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold">{{ group.name }}</span>
+                            <small class="text-muted">{{ group.group_id }}</small>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No group chats added yet.</p>
+                    <a href="{{ url_for('add_group') }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-plus"></i> Add Your First Group
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Upcoming Posts -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-calendar-alt"></i> Upcoming Posts
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if upcoming_posts %}
+                    {% for post in upcoming_posts %}
+                        <div class="mb-3">
+                            <div class="fw-bold">{{ post.title }}</div>
+                            <small class="text-muted">
+                                {{ post.scheduled_time.strftime('%m/%d/%Y %I:%M %p') }}
+                            </small>
+                            <div class="small text-truncate">{{ post.message[:50] }}...</div>
+                        </div>
+                    {% endfor %}
+                    <a href="{{ url_for('scheduled_posts') }}" class="btn btn-sm btn-warning">
+                        View All
+                    </a>
+                {% else %}
+                    <p class="text-muted">No upcoming posts scheduled.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Getting Started Guide -->
+{% if not group_chats %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-info-circle"></i> Getting Started
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6>Welcome to your GroupMe Portal! Here's how to get started:</h6>
+                <ol>
+                    <li>
+                        <strong>Create GroupMe Bots:</strong> 
+                        Go to <a href="https://dev.groupme.com/bots" target="_blank">GroupMe Developer Console</a> 
+                        and create bots for your group chats.
+                    </li>
+                    <li>
+                        <strong>Add Your Groups:</strong> 
+                        Click "Add Group Chat" and enter your group details including the Bot ID.
+                    </li>
+                    <li>
+                        <strong>Create Posts:</strong> 
+                        Upload posters, write messages, and schedule them to be sent automatically.
+                    </li>
+                    <li>
+                        <strong>Manage Schedule:</strong> 
+                        View and manage all your scheduled posts from the dashboard.
+                    </li>
+                </ol>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Important:</strong> You'll need to update the access token in the code with your GroupMe API token for full functionality.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

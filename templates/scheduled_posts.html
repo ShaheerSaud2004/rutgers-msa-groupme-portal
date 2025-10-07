@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Scheduled Posts - GroupMe Portal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-clock"></i> Scheduled Posts
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% if posts %}
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list"></i> All Scheduled Posts
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Group</th>
+                                    <th>Message Preview</th>
+                                    <th>Scheduled Time</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for post in posts %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ post.title }}</strong>
+                                            {% if post.image_path %}
+                                                <i class="fas fa-image text-info ms-1" title="Has image"></i>
+                                            {% endif %}
+                                            {% if post.links %}
+                                                <i class="fas fa-link text-success ms-1" title="Has links"></i>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% set group = post.group_chat %}
+                                            <span class="badge bg-secondary">{{ group.name }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="text-truncate" style="max-width: 200px;" title="{{ post.message }}">
+                                                {{ post.message[:100] }}{% if post.message|length > 100 %}...{% endif %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">
+                                                {{ post.scheduled_time.strftime('%m/%d/%Y') }}<br>
+                                                <small>{{ post.scheduled_time.strftime('%I:%M %p') }}</small>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if post.is_sent %}
+                                                <span class="badge bg-success">Sent</span>
+                                            {% else %}
+                                                {% set time_diff = post.scheduled_time - now %}
+                                                {% if time_diff.total_seconds() > 0 %}
+                                                    <span class="badge bg-warning">Pending</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Overdue</span>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="button" class="btn btn-outline-info" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#viewModal{{ post.id }}">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                {% if not post.is_sent %}
+                                                    <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" 
+                                                          style="display: inline;" 
+                                                          onsubmit="return confirm('Are you sure you want to delete this post?')">
+                                                        <button type="submit" class="btn btn-outline-danger">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <!-- View Modal -->
+                                    <div class="modal fade" id="viewModal{{ post.id }}" tabindex="-1">
+                                        <div class="modal-dialog modal-lg">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">{{ post.title }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <h6>Message:</h6>
+                                                            <div class="border p-3 rounded bg-light">
+                                                                {{ post.message|replace('\n', '<br>')|safe }}
+                                                                {% if post.links %}
+                                                                    <hr>
+                                                                    <strong>Links:</strong><br>
+                                                                    {% for link in post.links.split('\n') %}
+                                                                        {% if link.strip() %}
+                                                                            <a href="{{ link.strip() }}" target="_blank">{{ link.strip() }}</a><br>
+                                                                        {% endif %}
+                                                                    {% endfor %}
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <h6>Details:</h6>
+                                                            <ul class="list-unstyled">
+                                                                <li><strong>Group:</strong> {{ post.group_chat.name }}</li>
+                                                                <li><strong>Scheduled:</strong> {{ post.scheduled_time.strftime('%B %d, %Y at %I:%M %p') }}</li>
+                                                                <li><strong>Created:</strong> {{ post.created_at.strftime('%B %d, %Y at %I:%M %p') }}</li>
+                                                                <li><strong>Status:</strong> 
+                                                                    {% if post.is_sent %}
+                                                                        <span class="badge bg-success">Sent</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-warning">Pending</span>
+                                                                    {% endif %}
+                                                                </li>
+                                                            </ul>
+                                                            
+                                                            {% if post.image_path %}
+                                                                <h6>Image:</h6>
+                                                                <img src="{{ url_for('static', filename='uploads/' + post.image_path.split('/')[-1]) }}" 
+                                                                     class="img-fluid rounded" alt="Post image">
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Scheduled Posts</h4>
+                    <p class="text-muted">You haven't scheduled any posts yet.</p>
+                    <a href="{{ url_for('create_post') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Your First Post
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Statistics -->
+{% if posts %}
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">{{ posts|length }}</h5>
+                <p class="card-text">Total Posts</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">{{ posts|selectattr('is_sent', 'equalto', false)|list|length }}</h5>
+                <p class="card-text">Pending</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">{{ posts|selectattr('is_sent', 'equalto', true)|list|length }}</h5>
+                <p class="card-text">Sent</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">{{ posts|selectattr('image_path')|list|length }}</h5>
+                <p class="card-text">With Images</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
