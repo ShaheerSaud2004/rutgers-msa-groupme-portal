@@ -74,7 +74,7 @@
 
                             <div class="mb-3">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="send_immediately" name="send_immediately">
+                                    <input class="form-check-input" type="checkbox" id="send_immediately" name="send_immediately" checked>
                                     <label class="form-check-label" for="send_immediately">
                                         Send immediately
                                     </label>
@@ -290,9 +290,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const linksTextarea = document.getElementById('links');
     const previewDiv = document.getElementById('message-preview');
 
-    // Toggle schedule section
-    sendImmediatelyCheckbox.addEventListener('change', function() {
-        if (this.checked) {
+    // Initialize schedule section visibility
+    function updateScheduleVisibility() {
+        if (sendImmediatelyCheckbox.checked) {
             scheduleSection.style.display = 'none';
         } else {
             scheduleSection.style.display = 'block';
@@ -301,7 +301,13 @@ document.addEventListener('DOMContentLoaded', function() {
             now.setHours(now.getHours() + 1);
             document.getElementById('scheduled_time').value = now.toISOString().slice(0, 16);
         }
-    });
+    }
+
+    // Toggle schedule section
+    sendImmediatelyCheckbox.addEventListener('change', updateScheduleVisibility);
+    
+    // Initialize on page load
+    updateScheduleVisibility();
 
     // Toggle daily messages section
     const dailyMessagesCheckbox = document.getElementById('daily_messages');
