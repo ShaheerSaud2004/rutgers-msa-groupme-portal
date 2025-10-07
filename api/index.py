@@ -263,208 +263,59 @@ def create_post():
                 return redirect(url_for('create_post'))
             scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
             
-            # Check if this is a daily messages post
-            is_daily_messages = request.form.get('daily_messages') == 'on'
-            is_recurring = request.form.get('recurring') == 'on'
+            # Check recurring type
+            repeat_type = request.form.get('repeat_type', 'none')
             posts_created = 0
             
-            if is_daily_messages:
-                # Handle daily messages
-                morning_time = request.form.get('daily_morning_time', '09:00')
-                evening_time = request.form.get('daily_evening_time', '18:00')
-                start_date_str = request.form.get('daily_start_date')
-                end_date_str = request.form.get('daily_end_date')
-                morning_only = request.form.get('daily_morning_only') == 'on'
-                evening_only = request.form.get('daily_evening_only') == 'on'
+            if repeat_type == 'daily':
+                # Handle daily recurring
+                daily_time = request.form.get('daily_time', '09:00')
+                daily_days = int(request.form.get('daily_days', 7))
                 
-                if start_date_str:
-                    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-                    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
-                    
-                    current_date = start_date
-                    day_count = 0
-                    
-                    while True:
-                        if end_date and current_date > end_date:
-                            break
-                        if day_count >= 30:  # Limit to 30 days for safety
-                            break
-                            
-                        # Morning message
-                        if not evening_only:
-                            morning_datetime = datetime.combine(current_date, datetime.strptime(morning_time, '%H:%M').time())
-                            new_post = ScheduledPost(
-                                title=f"{title} (Daily Morning - {current_date.strftime('%m/%d')})",
-                                message=message,
-                                image_path=image_path,
-                                links=links,
-                                group_chat_id=group_chat_id,
-                                scheduled_time=morning_datetime
-                            )
-                            db.session.add(new_post)
-                            posts_created += 1
-                        
-                        # Evening message
-                        if not morning_only:
-                            evening_datetime = datetime.combine(current_date, datetime.strptime(evening_time, '%H:%M').time())
-                            new_post = ScheduledPost(
-                                title=f"{title} (Daily Evening - {current_date.strftime('%m/%d')})",
-                                message=message,
-                                image_path=image_path,
-                                links=links,
-                                group_chat_id=group_chat_id,
-                                scheduled_time=evening_datetime
-                            )
-                            db.session.add(new_post)
-                            posts_created += 1
-                        
-                        current_date += timedelta(days=1)
-                        day_count += 1
-                    
-                    flash(f'Daily messages scheduled successfully! Created {posts_created} scheduled posts from {start_date_str} to {end_date_str or "no end date"}.', 'success')
-                else:
-                    flash('Please select a start date for daily messages.', 'error')
-                    return redirect(url_for('create_post'))
+                current_date = scheduled_time.date()
+                for day in range(daily_days):
+                    daily_datetime = datetime.combine(current_date, datetime.strptime(daily_time, '%H:%M').time())
+                    new_post = ScheduledPost(
+                        title=f"{title} (Day {day+1})",
+                        message=message,
+                        image_path=image_path,
+                        links=links,
+                        group_chat_id=group_chat_id,
+                        scheduled_time=daily_datetime
+                    )
+                    db.session.add(new_post)
+                    posts_created += 1
+                    current_date += timedelta(days=1)
+                
+                flash(f'Daily messages scheduled successfully! Created {posts_created} scheduled posts.', 'success')
             
-            elif is_recurring:
-                # Create multiple posts for recurring schedule
-                interval = int(request.form.get('recurring_interval', 1))
-                unit = request.form.get('recurring_unit', 'days')
+            elif repeat_type == 'weekly':
+                # Handle weekly recurring
+                weekly_time = request.form.get('weekly_time', '09:00')
+                weekly_weeks = int(request.form.get('weekly_weeks', 4))
+                weekly_day = request.form.get('weekly_day', 'monday')
                 
-                # Handle different recurring types
-                if unit == 'days':
-                    # Daily recurring - check for specific times
-                    morning_time = request.form.get('morning_time')
-                    evening_time = request.form.get('evening_time')
-                    
-                    if morning_time and evening_time:
-                        # Create posts for both morning and evening
-                        current_date = scheduled_time.date()
-                        for day in range(7):  # Create for next 7 days
-                            # Morning post
-                            morning_datetime = datetime.combine(current_date, datetime.strptime(morning_time, '%H:%M').time())
-                            new_post = ScheduledPost(
-                                title=f"{title} (Daily Morning #{day+1})",
-                                message=message,
-                                image_path=image_path,
-                                links=links,
-                                group_chat_id=group_chat_id,
-                                scheduled_time=morning_datetime
-                            )
-                            db.session.add(new_post)
-                            posts_created += 1
-                            
-                            # Evening post
-                            evening_datetime = datetime.combine(current_date, datetime.strptime(evening_time, '%H:%M').time())
-                            new_post = ScheduledPost(
-                                title=f"{title} (Daily Evening #{day+1})",
-                                message=message,
-                                image_path=image_path,
-                                links=links,
-                                group_chat_id=group_chat_id,
-                                scheduled_time=evening_datetime
-                            )
-                            db.session.add(new_post)
-                            posts_created += 1
-                            
-                            current_date += timedelta(days=1)
-                    else:
-                        # Regular daily recurring
-                        delta = timedelta(days=interval)
-                        current_time = scheduled_time
-                        for i in range(7):  # Create for next 7 days
-                            new_post = ScheduledPost(
-                                title=f"{title} (Daily #{i+1})",
-                                message=message,
-                                image_path=image_path,
-                                links=links,
-                                group_chat_id=group_chat_id,
-                                scheduled_time=current_time
-                            )
-                            db.session.add(new_post)
-                            posts_created += 1
-                            current_time += delta
+                # Calculate the first occurrence of the selected day
+                current_date = scheduled_time.date()
+                day_offset = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].index(weekly_day)
+                first_occurrence = current_date + timedelta(days=(day_offset - current_date.weekday()) % 7)
                 
-                elif unit == 'weeks':
-                    # Weekly recurring - check for specific days
-                    weekdays = request.form.getlist('weekdays')
-                    if weekdays:
-                        # Create posts for specific days of the week
-                        current_date = scheduled_time.date()
-                        for week in range(4):  # Create for next 4 weeks
-                            for day_name in weekdays:
-                                # Calculate the date for this day of the week
-                                day_offset = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].index(day_name)
-                                target_date = current_date + timedelta(days=day_offset - current_date.weekday())
-                                target_datetime = datetime.combine(target_date, scheduled_time.time())
-                                
-                                new_post = ScheduledPost(
-                                    title=f"{title} (Weekly {day_name.title()} #{week+1})",
-                                    message=message,
-                                    image_path=image_path,
-                                    links=links,
-                                    group_chat_id=group_chat_id,
-                                    scheduled_time=target_datetime
-                                )
-                                db.session.add(new_post)
-                                posts_created += 1
-                            current_date += timedelta(weeks=1)
-                    else:
-                        # Regular weekly recurring
-                        delta = timedelta(weeks=interval)
-                        current_time = scheduled_time
-                        for i in range(4):  # Create for next 4 weeks
-                            new_post = ScheduledPost(
-                                title=f"{title} (Weekly #{i+1})",
-                                message=message,
-                                image_path=image_path,
-                                links=links,
-                                group_chat_id=group_chat_id,
-                                scheduled_time=current_time
-                            )
-                            db.session.add(new_post)
-                            posts_created += 1
-                            current_time += delta
+                for week in range(weekly_weeks):
+                    weekly_datetime = datetime.combine(first_occurrence, datetime.strptime(weekly_time, '%H:%M').time())
+                    new_post = ScheduledPost(
+                        title=f"{title} (Week {week+1})",
+                        message=message,
+                        image_path=image_path,
+                        links=links,
+                        group_chat_id=group_chat_id,
+                        scheduled_time=weekly_datetime
+                    )
+                    db.session.add(new_post)
+                    posts_created += 1
+                    first_occurrence += timedelta(weeks=1)
                 
-                elif unit == 'months':
-                    # Monthly recurring
-                    delta = timedelta(days=30 * interval)  # Approximate months
-                    current_time = scheduled_time
-                    for i in range(3):  # Create for next 3 months
-                        new_post = ScheduledPost(
-                            title=f"{title} (Monthly #{i+1})",
-                            message=message,
-                            image_path=image_path,
-                            links=links,
-                            group_chat_id=group_chat_id,
-                            scheduled_time=current_time
-                        )
-                        db.session.add(new_post)
-                        posts_created += 1
-                        current_time += delta
-                
-                else:
-                    # Hours or other intervals
-                    if unit == 'hours':
-                        delta = timedelta(hours=interval)
-                    else:
-                        delta = timedelta(days=interval)
-                    
-                    current_time = scheduled_time
-                    for i in range(4):
-                        new_post = ScheduledPost(
-                            title=f"{title} (Recurring #{i+1})",
-                            message=message,
-                            image_path=image_path,
-                            links=links,
-                            group_chat_id=group_chat_id,
-                            scheduled_time=current_time
-                        )
-                        db.session.add(new_post)
-                        posts_created += 1
-                        current_time += delta
-                
-                flash(f'Recurring post scheduled successfully! Created {posts_created} scheduled posts.', 'success')
+                flash(f'Weekly messages scheduled successfully! Created {posts_created} scheduled posts.', 'success')
+            
             else:
                 # Single scheduled post
                 new_post = ScheduledPost(
