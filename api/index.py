@@ -71,9 +71,19 @@ class MessageHistory(db.Model):
     error_message = db.Column(db.Text)
 
 class GroupMeAPI:
-    def __init__(self):
+    def __init__(self, access_token=None, group_id=None):
         self.base_url = app.config['GROUPME_BASE_URL']
-        self.access_token = app.config['GROUPME_ACCESS_TOKEN']
+        
+        # Select token based on group ID
+        if group_id:
+            if group_id == '107939343':  # Brothers group
+                self.access_token = 'HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP'
+            elif group_id == '107937618':  # Sisters group
+                self.access_token = 'BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA'
+            else:
+                self.access_token = access_token or app.config['GROUPME_ACCESS_TOKEN']
+        else:
+            self.access_token = access_token or app.config['GROUPME_ACCESS_TOKEN']
     
     def send_message(self, bot_id, text, image_url=None):
         """Send a message to GroupMe via bot"""
@@ -127,9 +137,6 @@ class GroupMeAPI:
             except Exception as e:
                 print(f"Error uploading image: {e}")
                 return None
-
-# Initialize GroupMe API
-groupme_api = GroupMeAPI()
 
 @app.route('/')
 def index():
@@ -192,6 +199,9 @@ def create_post():
             # Send immediately
             group_chat = GroupChat.query.get(group_chat_id)
             if group_chat:
+                # Initialize GroupMe API with group-specific token
+                groupme_api = GroupMeAPI(group_id=group_chat.group_id)
+                
                 # Upload image if present
                 image_url = None
                 image_upload_failed = False
@@ -483,6 +493,28 @@ def message_history():
     
     return render_template('message_history.html', history=history)
 
+@app.route('/update_group_tokens', methods=['POST'])
+def update_group_tokens():
+    """Update access tokens for groups"""
+    brothers_token = request.form.get('brothers_token')
+    sisters_token = request.form.get('sisters_token')
+    
+    # Update brothers group (Group ID: 107939343)
+    brothers_group = GroupChat.query.filter_by(group_id='107939343').first()
+    if brothers_group and brothers_token:
+        brothers_group.access_token = brothers_token
+        print(f"Updated brothers group token: {brothers_token[:10]}...")
+    
+    # Update sisters group (Group ID: 107937618)
+    sisters_group = GroupChat.query.filter_by(group_id='107937618').first()
+    if sisters_group and sisters_token:
+        sisters_group.access_token = sisters_token
+        print(f"Updated sisters group token: {sisters_token[:10]}...")
+    
+    db.session.commit()
+    flash('Group access tokens updated successfully!', 'success')
+    return redirect(url_for('index'))
+
 @app.route('/delete_post/<int:post_id>', methods=['POST'])
 def delete_post(post_id):
     """Delete a scheduled post"""
@@ -510,6 +542,9 @@ def send_scheduled_posts():
         for post in posts_to_send:
             group_chat = GroupChat.query.get(post.group_chat_id)
             if group_chat:
+                # Initialize GroupMe API with group-specific token
+                groupme_api = GroupMeAPI(group_id=group_chat.group_id)
+                
                 # Upload image if present
                 image_url = None
                 if post.image_path and os.path.exists(post.image_path):
