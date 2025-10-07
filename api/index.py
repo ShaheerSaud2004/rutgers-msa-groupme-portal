@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 import os
+import sys
 import requests
 import json
 from datetime import datetime, timedelta
@@ -11,7 +12,20 @@ import threading
 from PIL import Image
 import io
 import base64
-from config import Config
+
+# Configuration class
+class Config:
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'rutgers-msa-secret-key-2024'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///groupme_portal.db'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Upload settings
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'static/uploads'
+    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB
+    
+    # GroupMe API settings
+    GROUPME_ACCESS_TOKEN = os.environ.get('GROUPME_ACCESS_TOKEN') or 'HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP'
+    GROUPME_BASE_URL = 'https://api.groupme.com/v3'
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -325,5 +339,5 @@ def handler(request):
     return app(request.environ, lambda *args: None)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5001))
     app.run(debug=False, host='0.0.0.0', port=port)
