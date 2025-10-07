@@ -83,9 +83,51 @@
                             </div>
 
                             <div class="mb-3" id="schedule-section" style="display: none;">
-                                <label for="scheduled_time" class="form-label">Schedule for</label>
-                                <input type="datetime-local" class="form-control" id="scheduled_time" name="scheduled_time">
-                                <div class="form-text">When should this post be sent?</div>
+                                <label class="form-label">Schedule Options</label>
+                                
+                                <!-- Quick Schedule Buttons -->
+                                <div class="mb-3">
+                                    <label class="form-label small">Quick Schedule:</label>
+                                    <div class="btn-group btn-group-sm w-100" role="group">
+                                        <button type="button" class="btn quick-schedule-btn" onclick="setQuickTime(1)">1 Hour</button>
+                                        <button type="button" class="btn quick-schedule-btn" onclick="setQuickTime(6)">6 Hours</button>
+                                        <button type="button" class="btn quick-schedule-btn" onclick="setQuickTime(24)">1 Day</button>
+                                        <button type="button" class="btn quick-schedule-btn" onclick="setQuickTime(168)">1 Week</button>
+                                    </div>
+                                </div>
+
+                                <!-- Custom Date/Time -->
+                                <div class="mb-3">
+                                    <label for="scheduled_time" class="form-label">Custom Date & Time:</label>
+                                    <input type="datetime-local" class="form-control" id="scheduled_time" name="scheduled_time">
+                                </div>
+
+                                <!-- Recurring Options -->
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="recurring" name="recurring">
+                                        <label class="form-check-label" for="recurring">
+                                            Make this a recurring post
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3" id="recurring-options" style="display: none;">
+                                    <label for="recurring_interval" class="form-label">Repeat every:</label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <input type="number" class="form-control" id="recurring_interval" name="recurring_interval" min="1" value="1">
+                                        </div>
+                                        <div class="col-6">
+                                            <select class="form-select" id="recurring_unit" name="recurring_unit">
+                                                <option value="hours">Hours</option>
+                                                <option value="days">Days</option>
+                                                <option value="weeks">Weeks</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-text">This will create multiple scheduled posts automatically.</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -140,6 +182,27 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('scheduled_time').value = now.toISOString().slice(0, 16);
         }
     });
+
+    // Toggle recurring options
+    const recurringCheckbox = document.getElementById('recurring');
+    const recurringOptions = document.getElementById('recurring-options');
+    
+    if (recurringCheckbox) {
+        recurringCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                recurringOptions.style.display = 'block';
+            } else {
+                recurringOptions.style.display = 'none';
+            }
+        });
+    }
+
+    // Quick time functions
+    window.setQuickTime = function(hours) {
+        const now = new Date();
+        now.setHours(now.getHours() + hours);
+        document.getElementById('scheduled_time').value = now.toISOString().slice(0, 16);
+    };
 
     // Update preview
     function updatePreview() {

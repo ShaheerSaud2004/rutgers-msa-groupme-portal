@@ -46,8 +46,8 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% set group = post.group_chat %}
-                                            <span class="badge bg-secondary">{{ group.name }}</span>
+                                            {% set group = GroupChat.query.get(post.group_chat_id) %}
+                                            <span class="badge bg-secondary">{{ group.name if group else 'Unknown Group' }}</span>
                                         </td>
                                         <td>
                                             <div class="text-truncate" style="max-width: 200px;" title="{{ post.message }}">
@@ -120,7 +120,7 @@
                                                         <div class="col-md-6">
                                                             <h6>Details:</h6>
                                                             <ul class="list-unstyled">
-                                                                <li><strong>Group:</strong> {{ post.group_chat.name }}</li>
+                                                                <li><strong>Group:</strong> {{ GroupChat.query.get(post.group_chat_id).name if GroupChat.query.get(post.group_chat_id) else 'Unknown Group' }}</li>
                                                                 <li><strong>Scheduled:</strong> {{ post.scheduled_time.strftime('%B %d, %Y at %I:%M %p') }}</li>
                                                                 <li><strong>Created:</strong> {{ post.created_at.strftime('%B %d, %Y at %I:%M %p') }}</li>
                                                                 <li><strong>Status:</strong> 

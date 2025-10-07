@@ -19,7 +19,6 @@ app.config.from_object(Config)
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Initialize SQLAlchemy with proper configuration for Vercel
 db = SQLAlchemy(app)
 
 # Database Models
@@ -56,7 +55,13 @@ class GroupMeAPI:
         }
         
         if image_url:
-            data["picture_url"] = image_url
+            # Use the proper attachment format for images
+            data["attachments"] = [
+                {
+                    "type": "image",
+                    "url": image_url
+                }
+            ]
         
         headers = {
             "Content-Type": "application/json"
@@ -71,17 +76,24 @@ class GroupMeAPI:
     
     def upload_image(self, image_path):
         """Upload image to GroupMe and return URL"""
-        url = f"{self.base_url}/pictures"
+        # Use the correct GroupMe image service endpoint
+        url = "https://image.groupme.com/pictures"
         
         with open(image_path, 'rb') as image_file:
-            files = {'file': image_file}
-            data = {'access_token': self.access_token}
+            headers = {
+                'X-Access-Token': self.access_token,
+                'Content-Type': 'image/jpeg'  # GroupMe expects this content type
+            }
             
             try:
-                response = requests.post(url, files=files, data=data)
+                response = requests.post(url, headers=headers, data=image_file)
+                print(f"Image upload response: {response.status_code}")
                 if response.status_code == 200:
-                    return response.json()['payload']['url']
-                return None
+                    result = response.json()
+                    return result['payload']['url']
+                else:
+                    print(f"Image upload failed: {response.text}")
+                    return None
             except Exception as e:
                 print(f"Error uploading image: {e}")
                 return None
@@ -92,32 +104,15 @@ groupme_api = GroupMeAPI()
 @app.route('/')
 def index():
     """Main dashboard"""
-    try:
-        group_chats = GroupChat.query.all()
-        upcoming_posts = ScheduledPost.query.filter(
-            ScheduledPost.scheduled_time > datetime.utcnow(),
-            ScheduledPost.is_sent == False
-        ).order_by(ScheduledPost.scheduled_time).limit(5).all()
-        
-        return render_template('index.html', 
-                             group_chats=group_chats, 
-                             upcoming_posts=upcoming_posts)
-    except Exception as e:
-        # Fallback for database issues
-        return jsonify({
-            'message': 'GroupMe Portal',
-            'status': 'running',
-            'error': str(e) if os.environ.get('VERCEL') else None
-        })
-
-@app.route('/health')
-def health():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'vercel': os.environ.get('VERCEL', 'false'),
-        'environment': 'production' if os.environ.get('VERCEL') else 'development'
-    })
+    group_chats = GroupChat.query.all()
+    upcoming_posts = ScheduledPost.query.filter(
+        ScheduledPost.scheduled_time > datetime.utcnow(),
+        ScheduledPost.is_sent == False
+    ).order_by(ScheduledPost.scheduled_time).limit(5).all()
+    
+    return render_template('index.html', 
+                         group_chats=group_chats, 
+                         upcoming_posts=upcoming_posts)
 
 @app.route('/add_group', methods=['GET', 'POST'])
 def add_group():
@@ -169,14 +164,26 @@ def create_post():
             if group_chat:
                 # Upload image if present
                 image_url = None
-                if image_path:
+                image_upload_failed = False
+                if image_path and os.path.exists(image_path):
+                    print(f"Uploading image: {image_path}")
                     image_url = groupme_api.upload_image(image_path)
+                    if image_url:
+                        print(f"Image uploaded successfully: {image_url}")
+                    else:
+                        print("Image upload failed, sending text-only message")
+                        image_upload_failed = True
                 
                 # Send message
+                print(f"Sending message to bot {group_chat.bot_id}: {message}")
                 success = groupme_api.send_message(group_chat.bot_id, message, image_url)
+                print(f"Message sent successfully: {success}")
                 
                 if success:
-                    flash('Message sent successfully!', 'success')
+                    if image_upload_failed:
+                        flash('Message sent successfully, but image upload failed. GroupMe image service may be temporarily unavailable.', 'warning')
+                    else:
+                        flash('Message sent successfully!', 'success')
                 else:
                     flash('Failed to send message. Please check your bot configuration.', 'error')
         else:
@@ -187,19 +194,57 @@ def create_post():
                 return redirect(url_for('create_post'))
             scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
             
-            new_post = ScheduledPost(
-                title=title,
-                message=message,
-                image_path=image_path,
-                links=links,
-                group_chat_id=group_chat_id,
-                scheduled_time=scheduled_time
-            )
+            # Check if this is a recurring post
+            is_recurring = request.form.get('recurring') == 'on'
+            posts_created = 0
             
-            db.session.add(new_post)
+            if is_recurring:
+                # Create multiple posts for recurring schedule
+                interval = int(request.form.get('recurring_interval', 1))
+                unit = request.form.get('recurring_unit', 'days')
+                
+                # Calculate time delta
+                if unit == 'hours':
+                    delta = timedelta(hours=interval)
+                elif unit == 'days':
+                    delta = timedelta(days=interval)
+                elif unit == 'weeks':
+                    delta = timedelta(weeks=interval)
+                else:
+                    delta = timedelta(days=interval)
+                
+                # Create posts for the next 4 occurrences
+                current_time = scheduled_time
+                for i in range(4):
+                    new_post = ScheduledPost(
+                        title=f"{title} (Recurring #{i+1})",
+                        message=message,
+                        image_path=image_path,
+                        links=links,
+                        group_chat_id=group_chat_id,
+                        scheduled_time=current_time
+                    )
+                    db.session.add(new_post)
+                    posts_created += 1
+                    current_time += delta
+                
+                flash(f'Recurring post scheduled successfully! Created {posts_created} scheduled posts.', 'success')
+            else:
+                # Single scheduled post
+                new_post = ScheduledPost(
+                    title=title,
+                    message=message,
+                    image_path=image_path,
+                    links=links,
+                    group_chat_id=group_chat_id,
+                    scheduled_time=scheduled_time
+                )
+                
+                db.session.add(new_post)
+                posts_created = 1
+                flash('Post scheduled successfully!', 'success')
+            
             db.session.commit()
-            
-            flash('Post scheduled successfully!', 'success')
         
         return redirect(url_for('index'))
     
@@ -265,19 +310,12 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(1)
 
-# Initialize database tables when app starts
-def init_db():
+if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        print("Database initialized successfully")
-
-# Initialize database on import for Vercel
-init_db()
-
-if __name__ == '__main__':
-    # Only start scheduler for local development
-    if not os.environ.get('VERCEL'):
-        scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-        scheduler_thread.start()
+    
+    # Start scheduler in background thread
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
     
     app.run(debug=True, host='0.0.0.0', port=5001)
