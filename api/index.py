@@ -91,36 +91,43 @@ groupme_api = GroupMeAPI()
 @app.route('/')
 def index():
     """Main dashboard"""
-    group_chats = GroupChat.query.all()
-    upcoming_posts = ScheduledPost.query.filter(
-        ScheduledPost.scheduled_time > datetime.utcnow(),
-        ScheduledPost.is_sent == False
-    ).order_by(ScheduledPost.scheduled_time).limit(5).all()
-    
-    return render_template('index.html', 
-                         group_chats=group_chats, 
-                         upcoming_posts=upcoming_posts)
+    try:
+        group_chats = GroupChat.query.all()
+        upcoming_posts = ScheduledPost.query.filter(
+            ScheduledPost.scheduled_time > datetime.utcnow(),
+            ScheduledPost.is_sent == False
+        ).order_by(ScheduledPost.scheduled_time).limit(5).all()
+        
+        return render_template('index.html', 
+                             group_chats=group_chats, 
+                             upcoming_posts=upcoming_posts)
+    except Exception as e:
+        return f"Error loading dashboard: {str(e)}", 500
 
 @app.route('/add_group', methods=['GET', 'POST'])
 def add_group():
     """Add a new GroupMe group chat"""
     if request.method == 'POST':
-        name = request.form['name']
-        group_id = request.form['group_id']
-        bot_id = request.form['bot_id']
-        
-        # Check if group already exists
-        existing_group = GroupChat.query.filter_by(group_id=group_id).first()
-        if existing_group:
-            flash('Group with this ID already exists!', 'error')
+        try:
+            name = request.form['name']
+            group_id = request.form['group_id']
+            bot_id = request.form['bot_id']
+            
+            # Check if group already exists
+            existing_group = GroupChat.query.filter_by(group_id=group_id).first()
+            if existing_group:
+                flash('Group with this ID already exists!', 'error')
+                return redirect(url_for('add_group'))
+            
+            new_group = GroupChat(name=name, group_id=group_id, bot_id=bot_id)
+            db.session.add(new_group)
+            db.session.commit()
+            
+            flash('Group added successfully!', 'success')
+            return redirect(url_for('index'))
+        except Exception as e:
+            flash(f'Error adding group: {str(e)}', 'error')
             return redirect(url_for('add_group'))
-        
-        new_group = GroupChat(name=name, group_id=group_id, bot_id=bot_id)
-        db.session.add(new_group)
-        db.session.commit()
-        
-        flash('Group added successfully!', 'success')
-        return redirect(url_for('index'))
     
     return render_template('add_group.html')
 
@@ -128,89 +135,103 @@ def add_group():
 def create_post():
     """Create a new post (immediate or scheduled)"""
     if request.method == 'POST':
-        title = request.form['title']
-        message = request.form['message']
-        group_chat_id = request.form['group_chat_id']
-        links = request.form.get('links', '')
-        
-        # Handle file upload
-        image_path = None
-        if 'image' in request.files:
-            file = request.files['image']
-            if file and file.filename:
-                filename = secure_filename(file.filename)
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-                filename = timestamp + filename
-                image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(image_path)
-        
-        # Check if immediate or scheduled
-        if request.form.get('send_immediately') == 'on':
-            # Send immediately
-            group_chat = GroupChat.query.get(group_chat_id)
-            if group_chat:
-                # Upload image if present
-                image_url = None
-                if image_path:
-                    image_url = groupme_api.upload_image(image_path)
+        try:
+            title = request.form['title']
+            message = request.form['message']
+            group_chat_id = request.form['group_chat_id']
+            links = request.form.get('links', '')
+            
+            # Handle file upload
+            image_path = None
+            if 'image' in request.files:
+                file = request.files['image']
+                if file and file.filename:
+                    filename = secure_filename(file.filename)
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                    filename = timestamp + filename
+                    image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(image_path)
+            
+            # Check if immediate or scheduled
+            if request.form.get('send_immediately') == 'on':
+                # Send immediately
+                group_chat = GroupChat.query.get(group_chat_id)
+                if group_chat:
+                    # Upload image if present
+                    image_url = None
+                    if image_path:
+                        image_url = groupme_api.upload_image(image_path)
+                    
+                    # Send message
+                    success = groupme_api.send_message(group_chat.bot_id, message, image_url)
+                    
+                    if success:
+                        flash('Message sent successfully!', 'success')
+                    else:
+                        flash('Failed to send message. Please check your bot configuration.', 'error')
+            else:
+                # Schedule for later
+                scheduled_time_str = request.form.get('scheduled_time')
+                if not scheduled_time_str:
+                    flash('Please select a scheduled time or send immediately.', 'error')
+                    return redirect(url_for('create_post'))
+                scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
                 
-                # Send message
-                success = groupme_api.send_message(group_chat.bot_id, message, image_url)
+                new_post = ScheduledPost(
+                    title=title,
+                    message=message,
+                    image_path=image_path,
+                    links=links,
+                    group_chat_id=group_chat_id,
+                    scheduled_time=scheduled_time
+                )
                 
-                if success:
-                    flash('Message sent successfully!', 'success')
-                else:
-                    flash('Failed to send message. Please check your bot configuration.', 'error')
-        else:
-            # Schedule for later
-            scheduled_time_str = request.form.get('scheduled_time')
-            if not scheduled_time_str:
-                flash('Please select a scheduled time or send immediately.', 'error')
-                return redirect(url_for('create_post'))
-            scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
+                db.session.add(new_post)
+                db.session.commit()
+                
+                flash('Post scheduled successfully!', 'success')
             
-            new_post = ScheduledPost(
-                title=title,
-                message=message,
-                image_path=image_path,
-                links=links,
-                group_chat_id=group_chat_id,
-                scheduled_time=scheduled_time
-            )
-            
-            db.session.add(new_post)
-            db.session.commit()
-            
-            flash('Post scheduled successfully!', 'success')
-        
-        return redirect(url_for('index'))
+            return redirect(url_for('index'))
+        except Exception as e:
+            flash(f'Error creating post: {str(e)}', 'error')
+            return redirect(url_for('create_post'))
     
-    group_chats = GroupChat.query.all()
-    return render_template('create_post.html', group_chats=group_chats)
+    try:
+        group_chats = GroupChat.query.all()
+        return render_template('create_post.html', group_chats=group_chats)
+    except Exception as e:
+        return f"Error loading create post page: {str(e)}", 500
 
 @app.route('/scheduled_posts')
 def scheduled_posts():
     """View all scheduled posts"""
-    posts = ScheduledPost.query.filter(
-        ScheduledPost.is_sent == False
-    ).order_by(ScheduledPost.scheduled_time).all()
-    
-    return render_template('scheduled_posts.html', posts=posts)
+    try:
+        posts = ScheduledPost.query.filter(
+            ScheduledPost.is_sent == False
+        ).order_by(ScheduledPost.scheduled_time).all()
+        
+        return render_template('scheduled_posts.html', posts=posts)
+    except Exception as e:
+        return f"Error loading scheduled posts: {str(e)}", 500
 
 @app.route('/delete_post/<int:post_id>', methods=['POST'])
 def delete_post(post_id):
     """Delete a scheduled post"""
-    post = ScheduledPost.query.get_or_404(post_id)
-    
-    # Delete associated image file
-    if post.image_path and os.path.exists(post.image_path):
-        os.remove(post.image_path)
-    
-    db.session.delete(post)
-    db.session.commit()
-    
-    flash('Post deleted successfully!', 'success')
-    return redirect(url_for('scheduled_posts'))
+    try:
+        post = ScheduledPost.query.get_or_404(post_id)
+        
+        # Delete associated image file
+        if post.image_path and os.path.exists(post.image_path):
+            os.remove(post.image_path)
+        
+        db.session.delete(post)
+        db.session.commit()
+        
+        flash('Post deleted successfully!', 'success')
+        return redirect(url_for('scheduled_posts'))
+    except Exception as e:
+        flash(f'Error deleting post: {str(e)}', 'error')
+        return redirect(url_for('scheduled_posts'))
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -227,47 +248,57 @@ def webhook():
 @app.route('/health')
 def health():
     """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.utcnow().isoformat(),
-        'groups': GroupChat.query.count(),
-        'scheduled_posts': ScheduledPost.query.filter_by(is_sent=False).count()
-    })
+    try:
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'groups': GroupChat.query.count(),
+            'scheduled_posts': ScheduledPost.query.filter_by(is_sent=False).count()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def send_scheduled_posts():
     """Function to send scheduled posts (runs in background)"""
     with app.app_context():
-        current_time = datetime.utcnow()
-        posts_to_send = ScheduledPost.query.filter(
-            ScheduledPost.scheduled_time <= current_time,
-            ScheduledPost.is_sent == False
-        ).all()
-        
-        for post in posts_to_send:
-            group_chat = GroupChat.query.get(post.group_chat_id)
-            if group_chat:
-                # Upload image if present
-                image_url = None
-                if post.image_path and os.path.exists(post.image_path):
-                    image_url = groupme_api.upload_image(post.image_path)
-                
-                # Send message
-                success = groupme_api.send_message(group_chat.bot_id, post.message, image_url)
-                
-                if success:
-                    post.is_sent = True
-                    db.session.commit()
-                    print(f"Sent scheduled post: {post.title}")
-                else:
-                    print(f"Failed to send scheduled post: {post.title}")
+        try:
+            current_time = datetime.utcnow()
+            posts_to_send = ScheduledPost.query.filter(
+                ScheduledPost.scheduled_time <= current_time,
+                ScheduledPost.is_sent == False
+            ).all()
+            
+            for post in posts_to_send:
+                group_chat = GroupChat.query.get(post.group_chat_id)
+                if group_chat:
+                    # Upload image if present
+                    image_url = None
+                    if post.image_path and os.path.exists(post.image_path):
+                        image_url = groupme_api.upload_image(post.image_path)
+                    
+                    # Send message
+                    success = groupme_api.send_message(group_chat.bot_id, post.message, image_url)
+                    
+                    if success:
+                        post.is_sent = True
+                        db.session.commit()
+                        print(f"Sent scheduled post: {post.title}")
+                    else:
+                        print(f"Failed to send scheduled post: {post.title}")
+        except Exception as e:
+            print(f"Error in send_scheduled_posts: {e}")
 
 # Initialize database
-with app.app_context():
-    db.create_all()
+try:
+    with app.app_context():
+        db.create_all()
+except Exception as e:
+    print(f"Database initialization error: {e}")
 
 # This is the entry point for Vercel
 def handler(request):
     return app(request.environ, lambda *args: None)
 
+# For local development
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)
