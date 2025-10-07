@@ -10,6 +10,9 @@ class Config:
     # Use PostgreSQL for Vercel, SQLite for local development
     if os.environ.get('DATABASE_URL'):
         SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    elif os.environ.get('VERCEL'):
+        # For Vercel, use in-memory SQLite or external database
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     else:
         SQLALCHEMY_DATABASE_URI = 'sqlite:///groupme_portal.db'
     
@@ -18,12 +21,10 @@ class Config:
     # Upload settings - use /tmp for Vercel
     if os.environ.get('VERCEL'):
         UPLOAD_FOLDER = '/tmp/uploads'
+        # Ensure upload directory exists
+        os.makedirs('/tmp/uploads', exist_ok=True)
     else:
         UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'static/uploads'
-    
-    # Set instance path for Vercel
-    if os.environ.get('VERCEL'):
-        INSTANCE_PATH = '/tmp'
     
     MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB
     

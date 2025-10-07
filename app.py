@@ -19,6 +19,7 @@ app.config.from_object(Config)
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Initialize SQLAlchemy with proper configuration for Vercel
 db = SQLAlchemy(app)
 
 # Database Models
@@ -91,15 +92,32 @@ groupme_api = GroupMeAPI()
 @app.route('/')
 def index():
     """Main dashboard"""
-    group_chats = GroupChat.query.all()
-    upcoming_posts = ScheduledPost.query.filter(
-        ScheduledPost.scheduled_time > datetime.utcnow(),
-        ScheduledPost.is_sent == False
-    ).order_by(ScheduledPost.scheduled_time).limit(5).all()
-    
-    return render_template('index.html', 
-                         group_chats=group_chats, 
-                         upcoming_posts=upcoming_posts)
+    try:
+        group_chats = GroupChat.query.all()
+        upcoming_posts = ScheduledPost.query.filter(
+            ScheduledPost.scheduled_time > datetime.utcnow(),
+            ScheduledPost.is_sent == False
+        ).order_by(ScheduledPost.scheduled_time).limit(5).all()
+        
+        return render_template('index.html', 
+                             group_chats=group_chats, 
+                             upcoming_posts=upcoming_posts)
+    except Exception as e:
+        # Fallback for database issues
+        return jsonify({
+            'message': 'GroupMe Portal',
+            'status': 'running',
+            'error': str(e) if os.environ.get('VERCEL') else None
+        })
+
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'vercel': os.environ.get('VERCEL', 'false'),
+        'environment': 'production' if os.environ.get('VERCEL') else 'development'
+    })
 
 @app.route('/add_group', methods=['GET', 'POST'])
 def add_group():
@@ -247,12 +265,19 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(1)
 
-if __name__ == '__main__':
+# Initialize database tables when app starts
+def init_db():
     with app.app_context():
         db.create_all()
-    
-    # Start scheduler in background thread
-    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-    scheduler_thread.start()
+        print("Database initialized successfully")
+
+# Initialize database on import for Vercel
+init_db()
+
+if __name__ == '__main__':
+    # Only start scheduler for local development
+    if not os.environ.get('VERCEL'):
+        scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+        scheduler_thread.start()
     
     app.run(debug=True, host='0.0.0.0', port=5001)

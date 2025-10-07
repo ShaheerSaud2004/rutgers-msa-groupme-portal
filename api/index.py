@@ -1,40 +1,12 @@
 import os
-from flask import Flask, jsonify
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Set environment variable for Vercel
 os.environ['VERCEL'] = '1'
 
-# Create Flask app
-app = Flask(__name__)
+from app import app
 
-# Simple test route
-@app.route('/')
-def hello():
-    return jsonify({
-        'message': 'Hello from Vercel!',
-        'status': 'working',
-        'vercel': os.environ.get('VERCEL', 'false')
-    })
-
-@app.route('/test')
-def test():
-    return jsonify({
-        'status': 'success',
-        'message': 'Test endpoint working!',
-        'environment': {
-            'vercel': os.environ.get('VERCEL'),
-            'python_version': os.sys.version,
-            'current_dir': os.getcwd()
-        }
-    })
-
-@app.route('/health')
-def health():
-    return jsonify({'status': 'healthy'})
-
-# Vercel handler
+# Vercel handler - this is the correct way to handle Flask apps on Vercel
 def handler(request):
     return app(request.environ, lambda *args: None)
-
-if __name__ == '__main__':
-    app.run(debug=True)
