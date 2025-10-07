@@ -113,19 +113,82 @@
                                 </div>
 
                                 <div class="mb-3" id="recurring-options" style="display: none;">
-                                    <label for="recurring_interval" class="form-label">Repeat every:</label>
-                                    <div class="row">
-                                        <div class="col-6">
-                                            <input type="number" class="form-control" id="recurring_interval" name="recurring_interval" min="1" value="1">
-                                        </div>
-                                        <div class="col-6">
-                                            <select class="form-select" id="recurring_unit" name="recurring_unit">
-                                                <option value="hours">Hours</option>
-                                                <option value="days">Days</option>
-                                                <option value="weeks">Weeks</option>
-                                            </select>
+                                    <label class="form-label">Recurring Schedule:</label>
+                                    
+                                    <!-- Quick Recurring Options -->
+                                    <div class="mb-3">
+                                        <label class="form-label small">Quick Recurring:</label>
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <button type="button" class="btn quick-schedule-btn" onclick="setRecurring('daily')">Daily</button>
+                                            <button type="button" class="btn quick-schedule-btn" onclick="setRecurring('weekly')">Weekly</button>
+                                            <button type="button" class="btn quick-schedule-btn" onclick="setRecurring('monthly')">Monthly</button>
                                         </div>
                                     </div>
+
+                                    <!-- Custom Recurring -->
+                                    <div class="mb-3">
+                                        <label for="recurring_interval" class="form-label">Custom Repeat:</label>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <input type="number" class="form-control" id="recurring_interval" name="recurring_interval" min="1" value="1">
+                                            </div>
+                                            <div class="col-6">
+                                                <select class="form-select" id="recurring_unit" name="recurring_unit">
+                                                    <option value="hours">Hours</option>
+                                                    <option value="days" selected>Days</option>
+                                                    <option value="weeks">Weeks</option>
+                                                    <option value="months">Months</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Specific Times for Daily -->
+                                    <div class="mb-3" id="daily-times" style="display: none;">
+                                        <label class="form-label">Send at specific times:</label>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <input type="time" class="form-control" id="morning_time" name="morning_time" value="09:00">
+                                                <small class="text-muted">Morning</small>
+                                            </div>
+                                            <div class="col-6">
+                                                <input type="time" class="form-control" id="evening_time" name="evening_time" value="18:00">
+                                                <small class="text-muted">Evening</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Days of Week for Weekly -->
+                                    <div class="mb-3" id="weekly-days" style="display: none;">
+                                        <label class="form-label">Repeat on days:</label>
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="btn-group btn-group-sm w-100" role="group">
+                                                    <input type="checkbox" class="btn-check" id="mon" name="weekdays" value="monday">
+                                                    <label class="btn btn-outline-secondary" for="mon">Mon</label>
+                                                    
+                                                    <input type="checkbox" class="btn-check" id="tue" name="weekdays" value="tuesday">
+                                                    <label class="btn btn-outline-secondary" for="tue">Tue</label>
+                                                    
+                                                    <input type="checkbox" class="btn-check" id="wed" name="weekdays" value="wednesday">
+                                                    <label class="btn btn-outline-secondary" for="wed">Wed</label>
+                                                    
+                                                    <input type="checkbox" class="btn-check" id="thu" name="weekdays" value="thursday">
+                                                    <label class="btn btn-outline-secondary" for="thu">Thu</label>
+                                                    
+                                                    <input type="checkbox" class="btn-check" id="fri" name="weekdays" value="friday">
+                                                    <label class="btn btn-outline-secondary" for="fri">Fri</label>
+                                                    
+                                                    <input type="checkbox" class="btn-check" id="sat" name="weekdays" value="saturday">
+                                                    <label class="btn btn-outline-secondary" for="sat">Sat</label>
+                                                    
+                                                    <input type="checkbox" class="btn-check" id="sun" name="weekdays" value="sunday">
+                                                    <label class="btn btn-outline-secondary" for="sun">Sun</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="form-text">This will create multiple scheduled posts automatically.</div>
                                 </div>
                             </div>
@@ -202,6 +265,36 @@ document.addEventListener('DOMContentLoaded', function() {
         const now = new Date();
         now.setHours(now.getHours() + hours);
         document.getElementById('scheduled_time').value = now.toISOString().slice(0, 16);
+    };
+
+    // Recurring functions
+    window.setRecurring = function(type) {
+        const recurringCheckbox = document.getElementById('recurring');
+        const dailyTimes = document.getElementById('daily-times');
+        const weeklyDays = document.getElementById('weekly-days');
+        const recurringUnit = document.getElementById('recurring_unit');
+        const recurringInterval = document.getElementById('recurring_interval');
+        
+        // Check the recurring checkbox
+        recurringCheckbox.checked = true;
+        recurringOptions.style.display = 'block';
+        
+        // Hide all specific options first
+        dailyTimes.style.display = 'none';
+        weeklyDays.style.display = 'none';
+        
+        if (type === 'daily') {
+            recurringUnit.value = 'days';
+            recurringInterval.value = '1';
+            dailyTimes.style.display = 'block';
+        } else if (type === 'weekly') {
+            recurringUnit.value = 'weeks';
+            recurringInterval.value = '1';
+            weeklyDays.style.display = 'block';
+        } else if (type === 'monthly') {
+            recurringUnit.value = 'months';
+            recurringInterval.value = '1';
+        }
     };
 
     // Update preview
