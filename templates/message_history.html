@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Message History - GroupMe Portal{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2><i class="fas fa-history"></i> Message History</h2>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if history.items %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list"></i> All Sent Messages ({{ history.total }} total)
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Title</th>
+                                        <th>Message</th>
+                                        <th>Group</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Image</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for message in history.items %}
+                                    <tr>
+                                        <td>
+                                            <small class="text-muted">
+                                                {{ message.sent_at.strftime('%m/%d/%Y') }}<br>
+                                                {{ message.sent_at.strftime('%I:%M %p') }}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <strong>{{ message.title }}</strong>
+                                        </td>
+                                        <td>
+                                            <div class="message-preview">
+                                                {{ message.message[:100] }}{% if message.message|length > 100 %}...{% endif %}
+                                            </div>
+                                            {% if message.links %}
+                                                <small class="text-info">
+                                                    <i class="fas fa-link"></i> Contains links
+                                                </small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% set group = GroupChat.query.get(message.group_chat_id) %}
+                                            {% if group %}
+                                                <span class="badge bg-secondary">{{ group.name }}</span>
+                                            {% else %}
+                                                <span class="text-muted">Unknown Group</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if message.message_type == 'manual' %}
+                                                <span class="badge bg-primary">
+                                                    <i class="fas fa-hand-paper"></i> Manual
+                                                </span>
+                                            {% elif message.message_type == 'scheduled' %}
+                                                <span class="badge bg-warning">
+                                                    <i class="fas fa-clock"></i> Scheduled
+                                                </span>
+                                            {% elif message.message_type == 'daily' %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-calendar-day"></i> Daily
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ message.message_type }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if message.success %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check"></i> Sent
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-times"></i> Failed
+                                                </span>
+                                                {% if message.error_message %}
+                                                    <br><small class="text-danger">{{ message.error_message }}</small>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if message.image_path %}
+                                                <i class="fas fa-image text-success"></i>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        {% if history.pages > 1 %}
+        <div class="row mt-4">
+            <div class="col-12">
+                <nav aria-label="Message history pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if history.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('message_history', page=history.prev_num) }}">
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for page_num in history.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num != history.page %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('message_history', page=page_num) }}">{{ page_num }}</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ page_num }}</span>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if history.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('message_history', page=history.next_num) }}">
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+        {% endif %}
+
+    {% else %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">No Message History</h4>
+                        <p class="text-muted">You haven't sent any messages yet. Start by creating your first post!</p>
+                        <a href="{{ url_for('create_post') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Your First Post
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.message-preview {
+    max-width: 200px;
+    word-wrap: break-word;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+</style>
+{% endblock %}

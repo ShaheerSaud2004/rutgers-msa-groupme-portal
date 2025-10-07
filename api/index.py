@@ -24,7 +24,7 @@ class Config:
     MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB
     
     # GroupMe API settings
-    GROUPME_ACCESS_TOKEN = os.environ.get('GROUPME_ACCESS_TOKEN') or 'HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP'
+    GROUPME_ACCESS_TOKEN = os.environ.get('GROUPME_ACCESS_TOKEN') or 'BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA'
     GROUPME_BASE_URL = 'https://api.groupme.com/v3'
 
 # Set template and static folders to parent directory
@@ -57,6 +57,18 @@ class ScheduledPost(db.Model):
     scheduled_time = db.Column(db.DateTime, nullable=False)
     is_sent = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class MessageHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    image_path = db.Column(db.String(200))
+    links = db.Column(db.Text)
+    group_chat_id = db.Column(db.Integer, db.ForeignKey('group_chat.id'), nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    message_type = db.Column(db.String(50), default='manual')  # manual, scheduled, daily
+    success = db.Column(db.Boolean, default=True)
+    error_message = db.Column(db.Text)
 
 class GroupMeAPI:
     def __init__(self):
@@ -197,6 +209,19 @@ def create_post():
                 success = groupme_api.send_message(group_chat.bot_id, message, image_url)
                 print(f"Message sent successfully: {success}")
                 
+                # Record in message history
+                history_entry = MessageHistory(
+                    title=title,
+                    message=message,
+                    image_path=image_path,
+                    links=links,
+                    group_chat_id=group_chat_id,
+                    message_type='manual',
+                    success=success
+                )
+                db.session.add(history_entry)
+                db.session.commit()
+                
                 if success:
                     if image_upload_failed:
                         flash('Message sent successfully, but image upload failed. GroupMe image service may be temporarily unavailable.', 'warning')
@@ -212,11 +237,70 @@ def create_post():
                 return redirect(url_for('create_post'))
             scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
             
-            # Check if this is a recurring post
+            # Check if this is a daily messages post
+            is_daily_messages = request.form.get('daily_messages') == 'on'
             is_recurring = request.form.get('recurring') == 'on'
             posts_created = 0
             
-            if is_recurring:
+            if is_daily_messages:
+                # Handle daily messages
+                morning_time = request.form.get('daily_morning_time', '09:00')
+                evening_time = request.form.get('daily_evening_time', '18:00')
+                start_date_str = request.form.get('daily_start_date')
+                end_date_str = request.form.get('daily_end_date')
+                morning_only = request.form.get('daily_morning_only') == 'on'
+                evening_only = request.form.get('daily_evening_only') == 'on'
+                
+                if start_date_str:
+                    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+                    
+                    current_date = start_date
+                    day_count = 0
+                    
+                    while True:
+                        if end_date and current_date > end_date:
+                            break
+                        if day_count >= 30:  # Limit to 30 days for safety
+                            break
+                            
+                        # Morning message
+                        if not evening_only:
+                            morning_datetime = datetime.combine(current_date, datetime.strptime(morning_time, '%H:%M').time())
+                            new_post = ScheduledPost(
+                                title=f"{title} (Daily Morning - {current_date.strftime('%m/%d')})",
+                                message=message,
+                                image_path=image_path,
+                                links=links,
+                                group_chat_id=group_chat_id,
+                                scheduled_time=morning_datetime
+                            )
+                            db.session.add(new_post)
+                            posts_created += 1
+                        
+                        # Evening message
+                        if not morning_only:
+                            evening_datetime = datetime.combine(current_date, datetime.strptime(evening_time, '%H:%M').time())
+                            new_post = ScheduledPost(
+                                title=f"{title} (Daily Evening - {current_date.strftime('%m/%d')})",
+                                message=message,
+                                image_path=image_path,
+                                links=links,
+                                group_chat_id=group_chat_id,
+                                scheduled_time=evening_datetime
+                            )
+                            db.session.add(new_post)
+                            posts_created += 1
+                        
+                        current_date += timedelta(days=1)
+                        day_count += 1
+                    
+                    flash(f'Daily messages scheduled successfully! Created {posts_created} scheduled posts from {start_date_str} to {end_date_str or "no end date"}.', 'success')
+                else:
+                    flash('Please select a start date for daily messages.', 'error')
+                    return redirect(url_for('create_post'))
+            
+            elif is_recurring:
                 # Create multiple posts for recurring schedule
                 interval = int(request.form.get('recurring_interval', 1))
                 unit = request.form.get('recurring_unit', 'days')
@@ -386,6 +470,19 @@ def scheduled_posts():
     
     return render_template('scheduled_posts.html', posts=posts)
 
+@app.route('/message_history')
+def message_history():
+    """View message history"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    # Get all message history with pagination
+    history = MessageHistory.query.order_by(MessageHistory.sent_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return render_template('message_history.html', history=history)
+
 @app.route('/delete_post/<int:post_id>', methods=['POST'])
 def delete_post(post_id):
     """Delete a scheduled post"""
@@ -421,11 +518,24 @@ def send_scheduled_posts():
                 # Send message
                 success = groupme_api.send_message(group_chat.bot_id, post.message, image_url)
                 
+                # Record in message history
+                history_entry = MessageHistory(
+                    title=post.title,
+                    message=post.message,
+                    image_path=post.image_path,
+                    links=post.links,
+                    group_chat_id=post.group_chat_id,
+                    message_type='scheduled',
+                    success=success
+                )
+                db.session.add(history_entry)
+                
                 if success:
                     post.is_sent = True
                     db.session.commit()
                     print(f"Sent scheduled post: {post.title}")
                 else:
+                    db.session.commit()
                     print(f"Failed to send scheduled post: {post.title}")
 
 def run_scheduler():

@@ -14,5 +14,5 @@ class Config:
     MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB
     
     # GroupMe API settings
-    GROUPME_ACCESS_TOKEN = os.environ.get('GROUPME_ACCESS_TOKEN') or 'HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP'
+    GROUPME_ACCESS_TOKEN = os.environ.get('GROUPME_ACCESS_TOKEN') or 'BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA'
     GROUPME_BASE_URL = 'https://api.groupme.com/v3'
