@@ -14,8 +14,14 @@ import base64
 from config import Config
 
 # Configure Flask for Vercel
-instance_path = '/tmp' if os.environ.get('VERCEL') else None
-app = Flask(__name__, template_folder='../templates', static_folder='../static', instance_path=instance_path)
+if os.environ.get('VERCEL'):
+    # For Vercel, use /tmp as instance path and ensure it exists
+    instance_path = '/tmp'
+    os.makedirs(instance_path, exist_ok=True)
+    app = Flask(__name__, template_folder='../templates', static_folder='../static', instance_path=instance_path)
+else:
+    app = Flask(__name__, template_folder='../templates', static_folder='../static')
+
 app.config.from_object(Config)
 
 # Ensure upload directory exists
@@ -299,7 +305,12 @@ except Exception as e:
 
 # This is the entry point for Vercel
 def handler(request):
-    return app(request.environ, lambda *args: None)
+    try:
+        return app(request.environ, lambda *args: None)
+    except Exception as e:
+        print(f"Handler error: {e}")
+        from flask import Response
+        return Response(f"Internal Server Error: {str(e)}", status=500)
 
 # For local development
 if __name__ == '__main__':

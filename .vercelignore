@@ -31,3 +31,7 @@ venv.bak/
 logs/
 static/uploads/
 groupme_portal.db
+app.py
+run.py
+setup.py
+test_vercel.py
