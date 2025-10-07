@@ -11,9 +11,5 @@
       "src": "/(.*)",
       "dest": "app.py"
     }
-  ],
-  "env": {
-    "GROUPME_ACCESS_TOKEN": "@groupme_access_token",
-    "SECRET_KEY": "@secret_key"
-  }
+  ]
 }
