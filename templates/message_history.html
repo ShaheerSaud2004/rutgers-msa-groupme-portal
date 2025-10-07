@@ -61,7 +61,7 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% set group = GroupChat.query.get(message.group_chat_id) %}
+                                            {% set group = groups.get(message.group_chat_id) %}
                                             {% if group %}
                                                 <span class="badge bg-secondary">{{ group.name }}</span>
                                             {% else %}

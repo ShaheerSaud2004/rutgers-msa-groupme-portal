@@ -116,6 +116,70 @@
     </div>
 </div>
 
+<!-- Current Tasks Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-tasks"></i> Current Tasks
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if current_tasks %}
+                    <div class="row">
+                        {% for task in current_tasks %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-{% if task.priority == 'high' %}danger{% elif task.priority == 'medium' %}warning{% else %}success{% endif %}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="card-title mb-1">{{ task.title }}</h6>
+                                            {% if task.description %}
+                                                <p class="card-text small text-muted">{{ task.description[:100] }}{% if task.description|length > 100 %}...{% endif %}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-end">
+                                            {% if task.status == 'pending' %}
+                                                <span class="badge bg-secondary">Pending</span>
+                                            {% elif task.status == 'in_progress' %}
+                                                <span class="badge bg-primary">In Progress</span>
+                                            {% endif %}
+                                            <br>
+                                            <small class="text-muted">
+                                                {% if task.priority == 'high' %}
+                                                    <i class="fas fa-exclamation-triangle text-danger"></i> High
+                                                {% elif task.priority == 'medium' %}
+                                                    <i class="fas fa-minus-circle text-warning"></i> Medium
+                                                {% else %}
+                                                    <i class="fas fa-check-circle text-success"></i> Low
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">
+                                        Created: {{ task.created_at.strftime('%m/%d/%Y') }}
+                                        {% if task.due_date %}
+                                            | Due: {{ task.due_date.strftime('%m/%d/%Y') }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h5 class="text-muted">All tasks completed!</h5>
+                        <p class="text-muted">Great job! No pending tasks at the moment.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Daily Messages Management -->
 <div class="row mt-4">
     <div class="col-12">

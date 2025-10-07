@@ -70,6 +70,16 @@ class MessageHistory(db.Model):
     success = db.Column(db.Boolean, default=True)
     error_message = db.Column(db.Text)
 
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    status = db.Column(db.String(50), default='pending')  # pending, in_progress, completed
+    priority = db.Column(db.String(20), default='medium')  # low, medium, high
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    due_date = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+
 class GroupMeAPI:
     def __init__(self, access_token=None, group_id=None):
         self.base_url = app.config['GROUPME_BASE_URL']
@@ -147,9 +157,15 @@ def index():
         ScheduledPost.is_sent == False
     ).order_by(ScheduledPost.scheduled_time).limit(5).all()
     
+    # Get current tasks
+    current_tasks = Task.query.filter(
+        Task.status.in_(['pending', 'in_progress'])
+    ).order_by(Task.priority.desc(), Task.created_at.desc()).limit(5).all()
+    
     return render_template('index.html', 
                          group_chats=group_chats, 
-                         upcoming_posts=upcoming_posts)
+                         upcoming_posts=upcoming_posts,
+                         current_tasks=current_tasks)
 
 @app.route('/add_group', methods=['GET', 'POST'])
 def add_group():
@@ -491,7 +507,10 @@ def message_history():
         page=page, per_page=per_page, error_out=False
     )
     
-    return render_template('message_history.html', history=history)
+    # Get all groups for reference
+    groups = {group.id: group for group in GroupChat.query.all()}
+    
+    return render_template('message_history.html', history=history, groups=groups)
 
 @app.route('/update_group_tokens', methods=['POST'])
 def update_group_tokens():
