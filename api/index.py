@@ -77,9 +77,9 @@ class GroupMeAPI:
         # Select token based on group ID
         if group_id:
             if group_id == '107939343':  # Brothers group
-                self.access_token = 'HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP'
+                self.access_token = os.environ.get('BROTHERS_ACCESS_TOKEN') or 'HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP'
             elif group_id == '107937618':  # Sisters group
-                self.access_token = 'BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA'
+                self.access_token = os.environ.get('SISTERS_ACCESS_TOKEN') or 'BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA'
             else:
                 self.access_token = access_token or app.config['GROUPME_ACCESS_TOKEN']
         else:
