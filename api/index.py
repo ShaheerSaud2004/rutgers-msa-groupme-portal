@@ -1,17 +1,17 @@
+import os
+import sys
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
-import os
 import requests
-import json
 from datetime import datetime, timedelta
-import schedule
-import time
-import threading
 from PIL import Image
 import io
 import base64
 from config import Config
+
+# Set environment variable for Vercel
+os.environ['VERCEL'] = '1'
 
 # Configure Flask for Vercel
 if os.environ.get('VERCEL'):
@@ -33,8 +33,8 @@ db = SQLAlchemy(app)
 class GroupChat(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    group_id = db.Column(db.String(100), nullable=False, unique=True)
-    bot_id = db.Column(db.String(100), nullable=False)
+    group_id = db.Column(db.String(50), nullable=False, unique=True)
+    bot_id = db.Column(db.String(50), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ScheduledPost(db.Model):
@@ -42,89 +42,78 @@ class ScheduledPost(db.Model):
     title = db.Column(db.String(200), nullable=False)
     message = db.Column(db.Text, nullable=False)
     image_path = db.Column(db.String(200))
-    links = db.Column(db.Text)  # JSON string of links
-    group_chat_id = db.Column(db.Integer, db.ForeignKey('group_chat.id'), nullable=False)
     scheduled_time = db.Column(db.DateTime, nullable=False)
-    is_sent = db.Column(db.Boolean, default=False)
+    sent = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class GroupMeAPI:
-    def __init__(self):
-        self.base_url = app.config['GROUPME_BASE_URL']
-        self.access_token = app.config['GROUPME_ACCESS_TOKEN']
-    
-    def send_message(self, bot_id, text, image_url=None):
-        """Send a message to GroupMe via bot"""
-        url = f"{self.base_url}/bots/post"
-        
+# GroupMe API functions
+def upload_image_to_groupme(image_path):
+    """Upload image to GroupMe and return the URL"""
+    try:
+        with open(image_path, 'rb') as f:
+            files = {'file': f}
+            data = {'access_token': app.config['GROUPME_ACCESS_TOKEN']}
+            response = requests.post('https://image.groupme.com/pictures', files=files, data=data)
+            
+        if response.status_code == 200:
+            return response.json()['payload']['url']
+        else:
+            print(f"Image upload failed: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"Image upload error: {e}")
+        return None
+
+def send_groupme_message(group_id, bot_id, message, image_url=None):
+    """Send message to GroupMe group"""
+    try:
+        url = f"{app.config['GROUPME_BASE_URL']}/bots/post"
         data = {
-            "bot_id": bot_id,
-            "text": text
+            'bot_id': bot_id,
+            'text': message
         }
         
         if image_url:
-            data["picture_url"] = image_url
+            data['attachments'] = [{'type': 'image', 'url': image_url}]
         
-        headers = {
-            "Content-Type": "application/json"
-        }
+        response = requests.post(url, json=data)
         
-        try:
-            response = requests.post(url, json=data, headers=headers)
-            return response.status_code == 202
-        except Exception as e:
-            print(f"Error sending message: {e}")
+        if response.status_code == 202:
+            return True
+        else:
+            print(f"Message send failed: {response.status_code} - {response.text}")
             return False
-    
-    def upload_image(self, image_path):
-        """Upload image to GroupMe and return URL"""
-        url = f"{self.base_url}/pictures"
-        
-        with open(image_path, 'rb') as image_file:
-            files = {'file': image_file}
-            data = {'access_token': self.access_token}
-            
-            try:
-                response = requests.post(url, files=files, data=data)
-                if response.status_code == 200:
-                    return response.json()['payload']['url']
-                return None
-            except Exception as e:
-                print(f"Error uploading image: {e}")
-                return None
+    except Exception as e:
+        print(f"Message send error: {e}")
+        return False
 
-# Initialize GroupMe API
-groupme_api = GroupMeAPI()
-
+# Routes
 @app.route('/')
 def index():
-    """Main dashboard"""
     try:
-        group_chats = GroupChat.query.all()
-        upcoming_posts = ScheduledPost.query.filter(
-            ScheduledPost.scheduled_time > datetime.utcnow(),
-            ScheduledPost.is_sent == False
-        ).order_by(ScheduledPost.scheduled_time).limit(5).all()
-        
-        return render_template('index.html', 
-                             group_chats=group_chats, 
-                             upcoming_posts=upcoming_posts)
+        groups = GroupChat.query.all()
+        scheduled_posts = ScheduledPost.query.filter_by(sent=False).order_by(ScheduledPost.scheduled_time).all()
+        return render_template('index.html', groups=groups, scheduled_posts=scheduled_posts)
     except Exception as e:
-        return f"Error loading dashboard: {str(e)}", 500
+        print(f"Index route error: {e}")
+        return f"Error: {str(e)}", 500
 
 @app.route('/add_group', methods=['GET', 'POST'])
 def add_group():
-    """Add a new GroupMe group chat"""
-    if request.method == 'POST':
-        try:
-            name = request.form['name']
-            group_id = request.form['group_id']
-            bot_id = request.form['bot_id']
+    try:
+        if request.method == 'POST':
+            name = request.form.get('name')
+            group_id = request.form.get('group_id')
+            bot_id = request.form.get('bot_id')
+            
+            if not all([name, group_id, bot_id]):
+                flash('All fields are required.', 'error')
+                return redirect(url_for('add_group'))
             
             # Check if group already exists
             existing_group = GroupChat.query.filter_by(group_id=group_id).first()
             if existing_group:
-                flash('Group with this ID already exists!', 'error')
+                flash('Group with this ID already exists.', 'error')
                 return redirect(url_for('add_group'))
             
             new_group = GroupChat(name=name, group_id=group_id, bot_id=bot_id)
@@ -133,50 +122,48 @@ def add_group():
             
             flash('Group added successfully!', 'success')
             return redirect(url_for('index'))
-        except Exception as e:
-            flash(f'Error adding group: {str(e)}', 'error')
-            return redirect(url_for('add_group'))
-    
-    return render_template('add_group.html')
+        
+        return render_template('add_group.html')
+    except Exception as e:
+        print(f"Add group route error: {e}")
+        return f"Error: {str(e)}", 500
 
 @app.route('/create_post', methods=['GET', 'POST'])
 def create_post():
-    """Create a new post (immediate or scheduled)"""
-    if request.method == 'POST':
-        try:
-            title = request.form['title']
-            message = request.form['message']
-            group_chat_id = request.form['group_chat_id']
-            links = request.form.get('links', '')
+    try:
+        if request.method == 'POST':
+            title = request.form.get('title')
+            message = request.form.get('message')
+            image = request.files.get('image')
+            send_immediately = request.form.get('send_immediately')
             
-            # Handle file upload
+            if not title or not message:
+                flash('Title and message are required.', 'error')
+                return redirect(url_for('create_post'))
+            
             image_path = None
-            if 'image' in request.files:
-                file = request.files['image']
-                if file and file.filename:
-                    filename = secure_filename(file.filename)
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-                    filename = timestamp + filename
-                    image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(image_path)
+            if image and image.filename:
+                filename = secure_filename(image.filename)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                filename = timestamp + filename
+                image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                image.save(image_path)
             
-            # Check if immediate or scheduled
-            if request.form.get('send_immediately') == 'on':
-                # Send immediately
-                group_chat = GroupChat.query.get(group_chat_id)
-                if group_chat:
-                    # Upload image if present
+            if send_immediately:
+                # Send immediately to all groups
+                groups = GroupChat.query.all()
+                success_count = 0
+                
+                for group in groups:
                     image_url = None
                     if image_path:
-                        image_url = groupme_api.upload_image(image_path)
+                        image_url = upload_image_to_groupme(image_path)
                     
-                    # Send message
-                    success = groupme_api.send_message(group_chat.bot_id, message, image_url)
-                    
-                    if success:
-                        flash('Message sent successfully!', 'success')
-                    else:
-                        flash('Failed to send message. Please check your bot configuration.', 'error')
+                    if send_groupme_message(group.group_id, group.bot_id, message, image_url):
+                        success_count += 1
+                
+                flash(f'Message sent to {success_count}/{len(groups)} groups!', 'success')
+                return redirect(url_for('index'))
             else:
                 # Schedule for later
                 scheduled_time_str = request.form.get('scheduled_time')
@@ -189,117 +176,65 @@ def create_post():
                     title=title,
                     message=message,
                     image_path=image_path,
-                    links=links,
-                    group_chat_id=group_chat_id,
                     scheduled_time=scheduled_time
                 )
-                
                 db.session.add(new_post)
                 db.session.commit()
                 
                 flash('Post scheduled successfully!', 'success')
-            
-            return redirect(url_for('index'))
-        except Exception as e:
-            flash(f'Error creating post: {str(e)}', 'error')
-            return redirect(url_for('create_post'))
-    
-    try:
-        group_chats = GroupChat.query.all()
-        return render_template('create_post.html', group_chats=group_chats)
+                return redirect(url_for('index'))
+        
+        groups = GroupChat.query.all()
+        return render_template('create_post.html', groups=groups)
     except Exception as e:
-        return f"Error loading create post page: {str(e)}", 500
+        print(f"Create post route error: {e}")
+        return f"Error: {str(e)}", 500
 
 @app.route('/scheduled_posts')
 def scheduled_posts():
-    """View all scheduled posts"""
     try:
-        posts = ScheduledPost.query.filter(
-            ScheduledPost.is_sent == False
-        ).order_by(ScheduledPost.scheduled_time).all()
-        
+        posts = ScheduledPost.query.filter_by(sent=False).order_by(ScheduledPost.scheduled_time).all()
         return render_template('scheduled_posts.html', posts=posts)
     except Exception as e:
-        return f"Error loading scheduled posts: {str(e)}", 500
+        print(f"Scheduled posts route error: {e}")
+        return f"Error: {str(e)}", 500
 
-@app.route('/delete_post/<int:post_id>', methods=['POST'])
+@app.route('/delete_post/<int:post_id>')
 def delete_post(post_id):
-    """Delete a scheduled post"""
     try:
         post = ScheduledPost.query.get_or_404(post_id)
-        
-        # Delete associated image file
         if post.image_path and os.path.exists(post.image_path):
             os.remove(post.image_path)
-        
         db.session.delete(post)
         db.session.commit()
-        
         flash('Post deleted successfully!', 'success')
         return redirect(url_for('scheduled_posts'))
     except Exception as e:
-        flash(f'Error deleting post: {str(e)}', 'error')
-        return redirect(url_for('scheduled_posts'))
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Webhook endpoint for external triggers"""
-    try:
-        data = request.get_json()
-        if data and data.get('action') == 'send_scheduled':
-            send_scheduled_posts()
-            return jsonify({'status': 'success', 'message': 'Scheduled posts processed'})
-        return jsonify({'status': 'error', 'message': 'Invalid webhook data'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        print(f"Delete post route error: {e}")
+        return f"Error: {str(e)}", 500
 
 @app.route('/health')
 def health():
-    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+
+@app.route('/test')
+def test():
     try:
         return jsonify({
-            'status': 'healthy',
-            'timestamp': datetime.utcnow().isoformat(),
-            'groups': GroupChat.query.count(),
-            'scheduled_posts': ScheduledPost.query.filter_by(is_sent=False).count()
+            'status': 'success',
+            'message': 'Flask app is working!',
+            'vercel': os.environ.get('VERCEL', 'false'),
+            'upload_folder': app.config['UPLOAD_FOLDER'],
+            'database_uri': app.config['SQLALCHEMY_DATABASE_URI'][:20] + '...' if len(app.config['SQLALCHEMY_DATABASE_URI']) > 20 else app.config['SQLALCHEMY_DATABASE_URI']
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-def send_scheduled_posts():
-    """Function to send scheduled posts (runs in background)"""
-    with app.app_context():
-        try:
-            current_time = datetime.utcnow()
-            posts_to_send = ScheduledPost.query.filter(
-                ScheduledPost.scheduled_time <= current_time,
-                ScheduledPost.is_sent == False
-            ).all()
-            
-            for post in posts_to_send:
-                group_chat = GroupChat.query.get(post.group_chat_id)
-                if group_chat:
-                    # Upload image if present
-                    image_url = None
-                    if post.image_path and os.path.exists(post.image_path):
-                        image_url = groupme_api.upload_image(post.image_path)
-                    
-                    # Send message
-                    success = groupme_api.send_message(group_chat.bot_id, post.message, image_url)
-                    
-                    if success:
-                        post.is_sent = True
-                        db.session.commit()
-                        print(f"Sent scheduled post: {post.title}")
-                    else:
-                        print(f"Failed to send scheduled post: {post.title}")
-        except Exception as e:
-            print(f"Error in send_scheduled_posts: {e}")
 
 # Initialize database
 try:
     with app.app_context():
         db.create_all()
+        print("Database initialized successfully")
 except Exception as e:
     print(f"Database initialization error: {e}")
 
