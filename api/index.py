@@ -13,7 +13,9 @@ import io
 import base64
 from config import Config
 
-app = Flask(__name__, template_folder='../templates', static_folder='../static')
+# Configure Flask for Vercel
+instance_path = '/tmp' if os.environ.get('VERCEL') else None
+app = Flask(__name__, template_folder='../templates', static_folder='../static', instance_path=instance_path)
 app.config.from_object(Config)
 
 # Ensure upload directory exists

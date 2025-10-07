@@ -21,6 +21,10 @@ class Config:
     else:
         UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'static/uploads'
     
+    # Set instance path for Vercel
+    if os.environ.get('VERCEL'):
+        INSTANCE_PATH = '/tmp'
+    
     MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB
     
     # GroupMe API settings
