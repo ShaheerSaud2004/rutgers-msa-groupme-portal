@@ -6,7 +6,7 @@
 1. **RUmmah Brothers '25-26**
    - Group ID: `107939343`
    - Bot ID: `0253eda15ad81f240b1c2ce892`
-   - Access Token: `BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA` (Amira's token)
+   - Access Token: `HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP` (Original user's token)
 
 2. **RUmmah Sisters '25-26 💫**
    - Group ID: `107937618`
@@ -25,8 +25,14 @@ UPLOAD_FOLDER=static/uploads
 MAX_CONTENT_LENGTH=16777216
 
 # GroupMe API Configuration
+# Note: The system now uses dual tokens automatically based on group ID
+# This is the fallback token (currently Amira's token)
 GROUPME_ACCESS_TOKEN=BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA
 GROUPME_BASE_URL=https://api.groupme.com/v3
+
+# Group-Specific Tokens (handled automatically by the system):
+# Brothers Group (ID: 107939343) uses: HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP
+# Sisters Group (ID: 107937618) uses: BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA
 
 # Deployment
 FLASK_ENV=development
@@ -43,14 +49,19 @@ GROUPME_ACCESS_TOKEN=BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA
 SECRET_KEY=rutgers-msa-secret-key-2024
 ```
 
+**Note**: The system automatically uses the correct token for each group:
+- Brothers group will use: `HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP`
+- Sisters group will use: `BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA`
+
 ## Current Token Usage
 
-**Amira's Access Token**: `BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA`
+**Dual Token System**:
+- **Brothers Group**: `HRsKfLdVUMHZo9wqnCtlBOCo1W8KZfX80rQ9zFLP` (Original user)
+- **Sisters Group**: `BY3uMTwpFAEqpQAspag7qOAMyvqruRI16a6QkJkA` (Amira's token)
 
-This token is currently used for both groups because:
-- Amira has access to both the Brothers and Sisters groups
-- The bot IDs are the same for both groups
-- This simplifies the setup while maintaining functionality
+The system automatically selects the correct token based on the group ID:
+- When sending to Brothers group (ID: 107939343) → Uses original user's token
+- When sending to Sisters group (ID: 107937618) → Uses Amira's token
 
 ## Future Multi-Token Setup
 
